@@ -1,0 +1,52 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/iam_db
+    username: iam_malak
+    password: Malak123
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      password:
+
+  cloud:
+    vault:
+      enabled: false
+    gateway:
+      globalcors:
+        cors-configurations:
+          '[/**]':
+            allowedOriginPatterns: "*"
+            allowedMethods: "*"
+            allowedHeaders: "*"
+            allowCredentials: true
+
+# Service URLs - Development
+services:
+  user-service:
+    url: http://localhost:8081
+  auth-service:
+    url: http://localhost:8082
+  organization-service:
+    url: http://localhost:8083
+  chat-service:
+    url: http://localhost:8084
+
+# Rate limiting - Development (lenient)
+rate-limit:
+  redis-rate-limiter:
+    replenish-rate: 100
+    burst-capacity: 200
+
+logging:
+  level:
+    com.iam.gateway: DEBUG
+    org.springframework.cloud.gateway: DEBUG

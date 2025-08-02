@@ -34,12 +34,12 @@ public class JwtAuthenticationFilter extends AbstractGatewayFilterFactory<JwtAut
 
     // Public endpoints that bypass authentication - using constants
     private static final List<String> PUBLIC_ENDPOINTS = List.of(
-            "/api/v1/auth/login",
-            "/api/v1/auth/register",
-            "/api/v1/auth/refresh",
-            "/api/v1/auth/forgot-password",
-            "/api/v1/auth/reset-password",
-            "/api/v1/auth/health",
+            GatewayConstants.AUTH_LOGIN_PATH,
+            GatewayConstants.AUTH_REGISTER_PATH,
+            GatewayConstants.AUTH_REFRESH_PATH,
+            GatewayConstants.AUTH_FORGOT_PASSWORD_PATH,
+            GatewayConstants.AUTH_RESET_PASSWORD_PATH,
+            GatewayConstants.AUTH_HEALTH_PATH,
             GatewayConstants.GATEWAY_HEALTH_PATH,
             GatewayConstants.GATEWAY_INFO_PATH,
             GatewayConstants.USERS_HEALTH_PATH,
@@ -162,6 +162,7 @@ public class JwtAuthenticationFilter extends AbstractGatewayFilterFactory<JwtAut
     private boolean isPublicEndpoint(String path) {
         return PUBLIC_ENDPOINTS.stream().anyMatch(path::startsWith) ||
                 path.startsWith("/actuator/") ||
+                path.startsWith("/api/v1/gateway/") ||  // ADD THIS LINE - All gateway endpoints public
                 path.equals("/") ||
                 path.equals("/favicon.ico");
     }
@@ -204,6 +205,5 @@ public class JwtAuthenticationFilter extends AbstractGatewayFilterFactory<JwtAut
         private boolean enabled = true;
         private boolean strictMode = true;
         private long tokenExpirationTolerance = 300; // 5 minutes tolerance for clock skew
-
     }
 }

@@ -1,8 +1,12 @@
 package com.iam.gateway;
 
-import org.springframework.beans.factory.annotation.Value;
+import com.iam.gateway.config.ApiGatewayProperties;
+import com.iam.gateway.constants.GatewayConstants;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.cloud.gateway.route.RouteLocator;
 import org.springframework.cloud.gateway.route.builder.RouteLocatorBuilder;
 import org.springframework.context.annotation.Bean;
@@ -11,177 +15,167 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.reactive.CorsWebFilter;
 import org.springframework.web.cors.reactive.UrlBasedCorsConfigurationSource;
 
+import jakarta.annotation.PostConstruct;
+
 /**
- * API Gateway Application - Production Ready
- * Central entry point for all IAM microservices with environment-specific configuration
+ * API Gateway Application - Zero Hardcoded Strings
+ * All constants managed centrally for maintainability
  */
 @SpringBootApplication
-@ComponentScan(basePackages = {"com.iam.gateway", "com.iam.common"})
+@ComponentScan(basePackages = {
+        "com.iam.gateway",     // Gateway components
+        "com.iam.common"       // Common utilities (including JwtTokenProvider)
+})
+@EnableConfigurationProperties(ApiGatewayProperties.class)
+@RequiredArgsConstructor
+@Slf4j
 public class ApiGatewayApplication {
 
-    // ===================================================================
-    // SERVICE URLs - Environment Specific Configuration
-    // ===================================================================
-
-    @Value("${services.user-service.url:http://localhost:8081}")
-    private String userServiceUrl;
-
-    @Value("${services.auth-service.url:http://localhost:8082}")
-    private String authServiceUrl;
-
-    @Value("${services.organization-service.url:http://localhost:8083}")
-    private String organizationServiceUrl;
-
-    @Value("${services.chat-service.url:http://localhost:8084}")
-    private String chatServiceUrl;
-
-    // CORS Configuration
-    @Value("${cors.allowed-origins:*}")
-    private String[] allowedOrigins;
+    private final ApiGatewayProperties properties;
 
     public static void main(String[] args) {
         SpringApplication.run(ApiGatewayApplication.class, args);
     }
 
+    @PostConstruct
+    public void init() {
+        log.info("Starting {} version {}", GatewayConstants.APPLICATION_NAME, GatewayConstants.APPLICATION_VERSION);
+        log.info("Port: {}", GatewayConstants.DEFAULT_PORT);
+        log.info("Component scanning: com.iam.gateway, com.iam.common");
+    }
+
     /**
-     * Custom Route Locator - Production Ready with Dynamic URLs
+     * Route Configuration - Using Constants for All Strings
      */
     @Bean
     public RouteLocator customRouteLocator(RouteLocatorBuilder builder) {
+        log.info("Configuring routes with service URLs from properties");
+
         return builder.routes()
-                // ===================================================================
-                // USER SERVICE ROUTES
-                // ===================================================================
-                .route("user-service-protected", r -> r
-                        .path("/api/v1/users/**")
+                // User Service - Protected Routes
+                .route(GatewayConstants.USER_SERVICE_PROTECTED_ROUTE, r -> r
+                        .path(GatewayConstants.USERS_API_PATH)
                         .and()
-                        .not(p -> p.path("/api/v1/users/health")) // Exclude health check from auth
+                        .not(p -> p.path(GatewayConstants.USERS_HEALTH_PATH))
                         .filters(f -> f
-                                .addRequestHeader("X-Gateway-Request", "true")
-                                .addRequestHeader("X-Service-Route", "user-service")
-                                .addResponseHeader("X-Gateway-Response", "user-service")
-                                .addResponseHeader("X-Gateway-Version", "1.0.0")
+                                .addRequestHeader(GatewayConstants.HEADER_GATEWAY_REQUEST, GatewayConstants.HEADER_VALUE_TRUE)
+                                .addRequestHeader(GatewayConstants.HEADER_SERVICE_ROUTE, GatewayConstants.USER_SERVICE)
+                                .addResponseHeader(GatewayConstants.HEADER_GATEWAY_RESPONSE, GatewayConstants.USER_SERVICE)
+                                .addResponseHeader(GatewayConstants.HEADER_GATEWAY_VERSION, GatewayConstants.APPLICATION_VERSION)
                                 .circuitBreaker(config -> config
-                                        .setName("user-service-cb")
-                                        .setFallbackUri("forward:/fallback/user-service")
+                                        .setName(GatewayConstants.USER_SERVICE_CIRCUIT_BREAKER)
+                                        .setFallbackUri(GatewayConstants.USER_SERVICE_FALLBACK)
                                 )
                         )
-                        .uri(userServiceUrl) // ✅ DYNAMIC - Production Ready!
+                        .uri(properties.getServices().getUserServiceUrl())
                 )
 
-                // User Service Health Check (public endpoint)
-                .route("user-service-health", r -> r
-                        .path("/api/v1/users/health")
+                // User Service Health Check
+                .route(GatewayConstants.USER_SERVICE_HEALTH_ROUTE, r -> r
+                        .path(GatewayConstants.USERS_HEALTH_PATH)
                         .filters(f -> f
-                                .addRequestHeader("X-Gateway-Request", "true")
-                                .addResponseHeader("X-Gateway-Response", "user-service-health")
+                                .addRequestHeader(GatewayConstants.HEADER_GATEWAY_REQUEST, GatewayConstants.HEADER_VALUE_TRUE)
+                                .addResponseHeader(GatewayConstants.HEADER_GATEWAY_RESPONSE, GatewayConstants.USER_SERVICE + "-health")
                         )
-                        .uri(userServiceUrl) // ✅ DYNAMIC
+                        .uri(properties.getServices().getUserServiceUrl())
                 )
 
-                // ===================================================================
-                // AUTH SERVICE ROUTES (Mostly Public)
-                // ===================================================================
-                .route("auth-service", r -> r
-                        .path("/api/v1/auth/**")
+                // Auth Service Routes
+                .route(GatewayConstants.AUTH_SERVICE_ROUTE, r -> r
+                        .path(GatewayConstants.AUTH_API_PATH)
                         .filters(f -> f
-                                .addRequestHeader("X-Gateway-Request", "true")
-                                .addRequestHeader("X-Service-Route", "auth-service")
-                                .addResponseHeader("X-Gateway-Response", "auth-service")
-                                .addResponseHeader("X-Gateway-Version", "1.0.0")
+                                .addRequestHeader(GatewayConstants.HEADER_GATEWAY_REQUEST, GatewayConstants.HEADER_VALUE_TRUE)
+                                .addRequestHeader(GatewayConstants.HEADER_SERVICE_ROUTE, GatewayConstants.AUTH_SERVICE)
+                                .addResponseHeader(GatewayConstants.HEADER_GATEWAY_RESPONSE, GatewayConstants.AUTH_SERVICE)
+                                .addResponseHeader(GatewayConstants.HEADER_GATEWAY_VERSION, GatewayConstants.APPLICATION_VERSION)
                                 .circuitBreaker(config -> config
-                                        .setName("auth-service-cb")
-                                        .setFallbackUri("forward:/fallback/auth-service")
+                                        .setName(GatewayConstants.AUTH_SERVICE_CIRCUIT_BREAKER)
+                                        .setFallbackUri(GatewayConstants.AUTH_SERVICE_FALLBACK)
                                 )
                         )
-                        .uri(authServiceUrl) // ✅ DYNAMIC - Works in all environments!
+                        .uri(properties.getServices().getAuthServiceUrl())
                 )
 
-                // ===================================================================
-                // GATEWAY HEALTH CHECK (Self-referencing)
-                // ===================================================================
-                .route("gateway-health", r -> r
-                        .path("/api/v1/gateway/health", "/api/v1/gateway/info")
+                // Organization Service Routes
+                .route(GatewayConstants.ORGANIZATION_SERVICE_ROUTE, r -> r
+                        .path(GatewayConstants.ORGANIZATIONS_API_PATH)
                         .filters(f -> f
-                                .addRequestHeader("X-Gateway-Request", "true")
-                                .addResponseHeader("X-Gateway-Response", "gateway-self")
-                        )
-                        .uri("http://localhost:8080") // Self-reference for health aggregation
-                )
-
-                // ===================================================================
-                // FUTURE SERVICES (Ready for expansion)
-                // ===================================================================
-                .route("organization-service", r -> r
-                        .path("/api/v1/organizations/**")
-                        .filters(f -> f
-                                .addRequestHeader("X-Gateway-Request", "true")
-                                .addRequestHeader("X-Service-Route", "organization-service")
-                                .addResponseHeader("X-Gateway-Response", "organization-service")
-                                .addResponseHeader("X-Gateway-Version", "1.0.0")
+                                .addRequestHeader(GatewayConstants.HEADER_GATEWAY_REQUEST, GatewayConstants.HEADER_VALUE_TRUE)
+                                .addRequestHeader(GatewayConstants.HEADER_SERVICE_ROUTE, GatewayConstants.ORGANIZATION_SERVICE)
+                                .addResponseHeader(GatewayConstants.HEADER_GATEWAY_RESPONSE, GatewayConstants.ORGANIZATION_SERVICE)
+                                .addResponseHeader(GatewayConstants.HEADER_GATEWAY_VERSION, GatewayConstants.APPLICATION_VERSION)
                                 .circuitBreaker(config -> config
-                                        .setName("organization-service-cb")
-                                        .setFallbackUri("forward:/fallback/organization-service")
+                                        .setName(GatewayConstants.ORGANIZATION_SERVICE_CIRCUIT_BREAKER)
+                                        .setFallbackUri(GatewayConstants.ORGANIZATION_SERVICE_FALLBACK)
                                 )
                         )
-                        .uri(organizationServiceUrl) // ✅ Future-ready
+                        .uri(properties.getServices().getOrganizationServiceUrl())
                 )
 
-                .route("chat-service", r -> r
-                        .path("/api/v1/chat/**")
+                // Chat Service Routes
+                .route(GatewayConstants.CHAT_SERVICE_ROUTE, r -> r
+                        .path(GatewayConstants.CHAT_API_PATH)
                         .filters(f -> f
-                                .addRequestHeader("X-Gateway-Request", "true")
-                                .addRequestHeader("X-Service-Route", "chat-service")
-                                .addResponseHeader("X-Gateway-Response", "chat-service")
-                                .addResponseHeader("X-Gateway-Version", "1.0.0")
+                                .addRequestHeader(GatewayConstants.HEADER_GATEWAY_REQUEST, GatewayConstants.HEADER_VALUE_TRUE)
+                                .addRequestHeader(GatewayConstants.HEADER_SERVICE_ROUTE, GatewayConstants.CHAT_SERVICE)
+                                .addResponseHeader(GatewayConstants.HEADER_GATEWAY_RESPONSE, GatewayConstants.CHAT_SERVICE)
+                                .addResponseHeader(GatewayConstants.HEADER_GATEWAY_VERSION, GatewayConstants.APPLICATION_VERSION)
                                 .circuitBreaker(config -> config
-                                        .setName("chat-service-cb")
-                                        .setFallbackUri("forward:/fallback/chat-service")
+                                        .setName(GatewayConstants.CHAT_SERVICE_CIRCUIT_BREAKER)
+                                        .setFallbackUri(GatewayConstants.CHAT_SERVICE_FALLBACK)
                                 )
                         )
-                        .uri(chatServiceUrl) // ✅ Environment configurable
+                        .uri(properties.getServices().getChatServiceUrl())
                 )
 
-                // ===================================================================
-                // ADMIN/MANAGEMENT ROUTES (Future)
-                // ===================================================================
-                .route("admin-routes", r -> r
-                        .path("/api/v1/admin/**")
+                // Admin Routes
+                .route(GatewayConstants.ADMIN_ROUTES, r -> r
+                        .path(GatewayConstants.ADMIN_API_PATH)
                         .filters(f -> f
-                                .addRequestHeader("X-Gateway-Request", "true")
-                                .addRequestHeader("X-Service-Route", "admin-service")
-                                .addResponseHeader("X-Gateway-Response", "admin-service")
-                                .addResponseHeader("X-Requires-Admin", "true")
+                                .addRequestHeader(GatewayConstants.HEADER_GATEWAY_REQUEST, GatewayConstants.HEADER_VALUE_TRUE)
+                                .addRequestHeader(GatewayConstants.HEADER_SERVICE_ROUTE, GatewayConstants.ADMIN_SERVICE)
+                                .addRequestHeader(GatewayConstants.HEADER_REQUIRES_ADMIN, GatewayConstants.HEADER_VALUE_TRUE)
+                                .addResponseHeader(GatewayConstants.HEADER_GATEWAY_RESPONSE, GatewayConstants.ADMIN_SERVICE)
                         )
-                        .uri(userServiceUrl) // Admin routes can go to user service for now
+                        .uri(properties.getServices().getUserServiceUrl()) // Admin routes to user service for now
                 )
 
                 .build();
     }
 
     /**
-     * CORS Configuration - Environment Specific
+     * CORS Configuration - Using Constants for Headers
      */
     @Bean
     public CorsWebFilter corsWebFilter() {
         CorsConfiguration corsConfig = new CorsConfiguration();
-        corsConfig.setAllowCredentials(true);
+        corsConfig.setAllowCredentials(properties.getCors().isAllowCredentials());
 
-        // Environment-specific origins
-        if (allowedOrigins.length == 1 && "*".equals(allowedOrigins[0])) {
-            corsConfig.addAllowedOriginPattern("*"); // Development
+        // Handle origins from centralized config
+        if (properties.isPermissiveCors()) {
+            corsConfig.addAllowedOriginPattern(GatewayConstants.DEFAULT_CORS_ORIGINS);
+            log.info("CORS configured for development (permissive mode)");
         } else {
-            for (String origin : allowedOrigins) {
-                corsConfig.addAllowedOrigin(origin); // Production - specific origins
+            for (String origin : properties.getAllowedOriginsArray()) {
+                corsConfig.addAllowedOrigin(origin.trim());
             }
+            log.info("CORS configured for production with specific origins");
         }
 
-        corsConfig.addAllowedHeader("*");
-        corsConfig.addAllowedMethod("*");
-        corsConfig.addExposedHeader("Authorization");
-        corsConfig.addExposedHeader("X-Gateway-Response");
-        corsConfig.addExposedHeader("X-Gateway-Version");
-        corsConfig.addExposedHeader("X-Service-Route");
+        // Use constants for headers and methods
+        for (String header : properties.getCors().getAllowedHeaders()) {
+            corsConfig.addAllowedHeader(header);
+        }
+
+        for (String method : properties.getCors().getAllowedMethods()) {
+            corsConfig.addAllowedMethod(method);
+        }
+
+        for (String header : properties.getCors().getExposedHeaders()) {
+            corsConfig.addExposedHeader(header);
+        }
+
+        corsConfig.setMaxAge(properties.getCors().getMaxAge());
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", corsConfig);

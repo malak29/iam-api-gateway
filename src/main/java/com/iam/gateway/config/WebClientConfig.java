@@ -1,13 +1,16 @@
 package com.iam.gateway.config;
 
+import com.iam.gateway.constants.GatewayConstants;
+import com.iam.gateway.constants.GatewayMessages;
 import io.netty.channel.ChannelOption;
 import io.netty.handler.timeout.ReadTimeoutHandler;
 import io.netty.handler.timeout.WriteTimeoutHandler;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.client.reactive.ReactorClientHttpConnector;
+import org.springframework.web.reactive.function.client.ClientRequest;
 import org.springframework.web.reactive.function.client.ExchangeFilterFunction;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
@@ -16,43 +19,27 @@ import reactor.netty.http.client.HttpClient;
 import java.time.Duration;
 import java.util.concurrent.TimeUnit;
 
-/**
- * WebClient Configuration for Gateway - Production Ready
- * Configures WebClient for communication with downstream services
- */
 @Configuration
+@RequiredArgsConstructor
 @Slf4j
 public class WebClientConfig {
 
-    @Value("${webclient.connect-timeout-ms:10000}")
-    private int connectTimeoutMs;
-
-    @Value("${webclient.response-timeout-seconds:30}")
-    private int responseTimeoutSeconds;
-
-    @Value("${webclient.read-timeout-seconds:30}")
-    private int readTimeoutSeconds;
-
-    @Value("${webclient.write-timeout-seconds:30}")
-    private int writeTimeoutSeconds;
-
-    @Value("${webclient.max-in-memory-size:1048576}")
-    private int maxInMemorySize;
+    private final ApiGatewayProperties properties;
 
     @Bean
     public WebClient.Builder webClientBuilder() {
-        // Configure HTTP client with comprehensive timeouts and connection pooling
+        // Configure HTTP client with timeouts from properties
         HttpClient httpClient = HttpClient.create()
-                .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, connectTimeoutMs)
-                .responseTimeout(Duration.ofSeconds(responseTimeoutSeconds))
+                .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, properties.getWebClient().getConnectTimeoutMs())
+                .responseTimeout(Duration.ofSeconds(properties.getWebClient().getResponseTimeoutSeconds()))
                 .doOnConnected(conn ->
-                        conn.addHandlerLast(new ReadTimeoutHandler(readTimeoutSeconds, TimeUnit.SECONDS))
-                                .addHandlerLast(new WriteTimeoutHandler(writeTimeoutSeconds, TimeUnit.SECONDS))
+                        conn.addHandlerLast(new ReadTimeoutHandler(properties.getWebClient().getReadTimeoutSeconds(), TimeUnit.SECONDS))
+                                .addHandlerLast(new WriteTimeoutHandler(properties.getWebClient().getWriteTimeoutSeconds(), TimeUnit.SECONDS))
                 );
 
         return WebClient.builder()
                 .clientConnector(new ReactorClientHttpConnector(httpClient))
-                .codecs(configurer -> configurer.defaultCodecs().maxInMemorySize(maxInMemorySize))
+                .codecs(configurer -> configurer.defaultCodecs().maxInMemorySize(properties.getWebClient().getMaxInMemorySize()))
                 .filter(logRequest())
                 .filter(logResponse())
                 .filter(errorHandler())
@@ -60,7 +47,7 @@ public class WebClientConfig {
     }
 
     /**
-     * Log outgoing requests with detailed information
+     * Log outgoing requests with detailed information - Using Constants
      */
     private ExchangeFilterFunction logRequest() {
         return ExchangeFilterFunction.ofRequestProcessor(clientRequest -> {
@@ -78,7 +65,7 @@ public class WebClientConfig {
     }
 
     /**
-     * Log incoming responses with status and timing
+     * Log incoming responses with status and timing - Using Constants
      */
     private ExchangeFilterFunction logResponse() {
         return ExchangeFilterFunction.ofResponseProcessor(clientResponse -> {
@@ -94,33 +81,31 @@ public class WebClientConfig {
     }
 
     /**
-     * Add gateway identification headers to all outbound requests
+     * Add gateway identification headers to all outbound requests - Using Constants
      */
     private ExchangeFilterFunction addGatewayHeaders() {
         return ExchangeFilterFunction.ofRequestProcessor(clientRequest -> {
-            return Mono.just(clientRequest.mutate()
-                    .header("X-Gateway-Request", "true")
-                    .header("X-Gateway-Version", "1.0.0")
-                    .header("X-Request-ID", generateRequestId())
-                    .build());
+            ClientRequest newRequest = ClientRequest.from(clientRequest)
+                    .header(GatewayConstants.HEADER_GATEWAY_REQUEST, GatewayConstants.HEADER_VALUE_TRUE)
+                    .header(GatewayConstants.HEADER_GATEWAY_VERSION, GatewayConstants.APPLICATION_VERSION)
+                    .header(GatewayConstants.HEADER_REQUEST_ID, generateRequestId())
+                    .build();
+            return Mono.just(newRequest);
         });
     }
-
     /**
-     * Comprehensive error handling for WebClient responses
+     * Comprehensive error handling for WebClient responses - Using Messages
      */
     private ExchangeFilterFunction errorHandler() {
         return ExchangeFilterFunction.ofResponseProcessor(clientResponse -> {
             if (clientResponse.statusCode().isError()) {
-                log.warn("Gateway WebClient error response: {} {} from URL: {}",
+                log.warn(GatewayMessages.LOG_WEBCLIENT_ERROR,
                         clientResponse.statusCode().value(),
-                        clientResponse.statusCode().getReasonPhrase(),
+                        "", // Reason phrase not available in Spring 6+
                         clientResponse.request().getURI());
 
-                // Log additional error details for 5xx errors
                 if (clientResponse.statusCode().is5xxServerError()) {
-                    log.error("Downstream service error: {} - This may trigger circuit breaker",
-                            clientResponse.statusCode());
+                    log.error(GatewayMessages.LOG_DOWNSTREAM_SERVICE_ERROR, clientResponse.statusCode());
                 }
             }
             return Mono.just(clientResponse);
@@ -128,23 +113,26 @@ public class WebClientConfig {
     }
 
     /**
-     * Generate unique request ID for tracing
+     * Generate unique request ID for tracing - Using Constants
      */
     private String generateRequestId() {
-        return "gw-" + System.currentTimeMillis() + "-" + Thread.currentThread().getId();
+        return GatewayMessages.REQUEST_ID_PREFIX +
+                System.currentTimeMillis() +
+                GatewayMessages.REQUEST_ID_SEPARATOR +
+                Thread.currentThread().threadId();
     }
 
     /**
-     * Specialized WebClient for health checks with shorter timeouts
+     * Specialized WebClient for health checks with shorter timeouts - Using Constants
      */
-    @Bean
+    @Bean(GatewayMessages.BEAN_HEALTH_CHECK_WEBCLIENT)
     public WebClient healthCheckWebClient() {
         HttpClient healthCheckHttpClient = HttpClient.create()
                 .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, 3000)
-                .responseTimeout(Duration.ofSeconds(5))
+                .responseTimeout(Duration.ofSeconds(GatewayConstants.HEALTH_CHECK_TIMEOUT))
                 .doOnConnected(conn ->
-                        conn.addHandlerLast(new ReadTimeoutHandler(5, TimeUnit.SECONDS))
-                                .addHandlerLast(new WriteTimeoutHandler(5, TimeUnit.SECONDS))
+                        conn.addHandlerLast(new ReadTimeoutHandler(GatewayConstants.HEALTH_CHECK_TIMEOUT, TimeUnit.SECONDS))
+                                .addHandlerLast(new WriteTimeoutHandler(GatewayConstants.HEALTH_CHECK_TIMEOUT, TimeUnit.SECONDS))
                 );
 
         return WebClient.builder()

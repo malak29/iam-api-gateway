@@ -1,20 +1,19 @@
 package com.iam.gateway.config;
 
+import com.iam.gateway.constants.GatewayConstants;
+import com.iam.gateway.constants.GatewayMessages;
 import com.iam.gateway.filter.JwtAuthenticationFilter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cloud.gateway.route.RouteLocator;
 import org.springframework.cloud.gateway.route.builder.RouteLocatorBuilder;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.data.redis.connection.RedisConnectionFactory;
-import org.springframework.data.redis.core.ReactiveRedisTemplate;
-import org.springframework.data.redis.serializer.RedisSerializationContext;
-import org.springframework.data.redis.serializer.StringRedisSerializer;
+import org.springframework.context.annotation.Primary;
 
 /**
- * Gateway Configuration with Production-Ready Service URLs
+ * Gateway Configuration - Zero Hardcoded Strings
+ * All strings managed through constants and properties
  */
 @Configuration
 @RequiredArgsConstructor
@@ -22,199 +21,181 @@ import org.springframework.data.redis.serializer.StringRedisSerializer;
 public class GatewayConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
-
-    // Service URLs from environment configuration
-    @Value("${services.user-service.url:http://localhost:8081}")
-    private String userServiceUrl;
-
-    @Value("${services.auth-service.url:http://localhost:8082}")
-    private String authServiceUrl;
-
-    @Value("${services.organization-service.url:http://localhost:8083}")
-    private String organizationServiceUrl;
-
-    @Value("${services.chat-service.url:http://localhost:8084}")
-    private String chatServiceUrl;
+    private final ApiGatewayProperties properties;
 
     @Bean
     public RouteLocator gatewayRoutes(RouteLocatorBuilder builder) {
-        log.info("Configuring Gateway Routes with Service URLs:");
-        log.info("User Service: {}", userServiceUrl);
-        log.info("Auth Service: {}", authServiceUrl);
-        log.info("Organization Service: {}", organizationServiceUrl);
-        log.info("Chat Service: {}", chatServiceUrl);
+        log.info(GatewayMessages.LOG_CONFIGURING_ROUTES);
+        log.info("User Service: {}", properties.getServices().getUserServiceUrl());
+        log.info("Auth Service: {}", properties.getServices().getAuthServiceUrl());
+        log.info("Organization Service: {}", properties.getServices().getOrganizationServiceUrl());
+        log.info("Chat Service: {}", properties.getServices().getChatServiceUrl());
 
         return builder.routes()
-                // ===================================================================
-                // USER SERVICE - Protected Routes with JWT Authentication
-                // ===================================================================
-                .route("user-service-protected", r -> r
-                        .path("/api/v1/users/**")
+                // User Service - Protected Routes with JWT Authentication
+                .route(GatewayConstants.USER_SERVICE_PROTECTED_ROUTE, r -> r
+                        .path(GatewayConstants.USERS_API_PATH)
                         .and()
-                        .not(p -> p.path("/api/v1/users/health")) // Exclude health check
+                        .not(p -> p.path(GatewayConstants.USERS_HEALTH_PATH)) // Exclude health check
                         .filters(f -> f
                                 .filter(jwtAuthenticationFilter.apply(new JwtAuthenticationFilter.Config()))
-                                .addRequestHeader("X-Gateway-Request", "true")
-                                .addRequestHeader("X-Service-Route", "user-service")
-                                .addResponseHeader("X-Gateway-Response", "user-service")
+                                .addRequestHeader(GatewayConstants.HEADER_GATEWAY_REQUEST, GatewayConstants.HEADER_VALUE_TRUE)
+                                .addRequestHeader(GatewayConstants.HEADER_SERVICE_ROUTE, GatewayConstants.USER_SERVICE)
+                                .addResponseHeader(GatewayConstants.HEADER_GATEWAY_RESPONSE, GatewayConstants.USER_SERVICE)
                                 .requestRateLimiter(config -> config
                                         .setRateLimiter(redisRateLimiter())
                                         .setKeyResolver(userKeyResolver())
                                 )
                                 .circuitBreaker(config -> config
-                                        .setName("user-service-cb")
-                                        .setFallbackUri("forward:/fallback/user-service")
+                                        .setName(GatewayConstants.USER_SERVICE_CIRCUIT_BREAKER)
+                                        .setFallbackUri(GatewayConstants.USER_SERVICE_FALLBACK)
                                 )
                         )
-                        .uri(userServiceUrl) // ✅ Dynamic URL
+                        .uri(properties.getServices().getUserServiceUrl())
                 )
 
                 // User Service Health Check (Public)
-                .route("user-service-health", r -> r
-                        .path("/api/v1/users/health")
+                .route(GatewayConstants.USER_SERVICE_HEALTH_ROUTE, r -> r
+                        .path(GatewayConstants.USERS_HEALTH_PATH)
                         .filters(f -> f
-                                .addRequestHeader("X-Gateway-Request", "true")
-                                .addResponseHeader("X-Gateway-Response", "user-service-health")
+                                .addRequestHeader(GatewayConstants.HEADER_GATEWAY_REQUEST, GatewayConstants.HEADER_VALUE_TRUE)
+                                .addResponseHeader(GatewayConstants.HEADER_GATEWAY_RESPONSE, GatewayConstants.USER_SERVICE + "-health")
                         )
-                        .uri(userServiceUrl) // ✅ Dynamic URL
+                        .uri(properties.getServices().getUserServiceUrl())
                 )
 
-                // ===================================================================
-                // AUTH SERVICE - Public Routes (Login, Register, etc.)
-                // ===================================================================
-                .route("auth-service", r -> r
-                        .path("/api/v1/auth/**")
+                // Auth Service - Public Routes (Login, Register, etc.)
+                .route(GatewayConstants.AUTH_SERVICE_ROUTE, r -> r
+                        .path(GatewayConstants.AUTH_API_PATH)
                         .filters(f -> f
-                                .addRequestHeader("X-Gateway-Request", "true")
-                                .addRequestHeader("X-Service-Route", "auth-service")
-                                .addResponseHeader("X-Gateway-Response", "auth-service")
+                                .addRequestHeader(GatewayConstants.HEADER_GATEWAY_REQUEST, GatewayConstants.HEADER_VALUE_TRUE)
+                                .addRequestHeader(GatewayConstants.HEADER_SERVICE_ROUTE, GatewayConstants.AUTH_SERVICE)
+                                .addResponseHeader(GatewayConstants.HEADER_GATEWAY_RESPONSE, GatewayConstants.AUTH_SERVICE)
                                 .requestRateLimiter(config -> config
                                         .setRateLimiter(redisRateLimiter())
                                         .setKeyResolver(ipKeyResolver()) // Rate limit by IP for auth
                                 )
                                 .circuitBreaker(config -> config
-                                        .setName("auth-service-cb")
-                                        .setFallbackUri("forward:/fallback/auth-service")
+                                        .setName(GatewayConstants.AUTH_SERVICE_CIRCUIT_BREAKER)
+                                        .setFallbackUri(GatewayConstants.AUTH_SERVICE_FALLBACK)
                                 )
                         )
-                        .uri(authServiceUrl) // ✅ Dynamic URL
+                        .uri(properties.getServices().getAuthServiceUrl())
                 )
 
-                // ===================================================================
-                // ORGANIZATION SERVICE - Protected Routes
-                // ===================================================================
-                .route("organization-service", r -> r
-                        .path("/api/v1/organizations/**")
+                // Organization Service - Protected Routes
+                .route(GatewayConstants.ORGANIZATION_SERVICE_ROUTE, r -> r
+                        .path(GatewayConstants.ORGANIZATIONS_API_PATH)
                         .filters(f -> f
                                 .filter(jwtAuthenticationFilter.apply(new JwtAuthenticationFilter.Config()))
-                                .addRequestHeader("X-Gateway-Request", "true")
-                                .addRequestHeader("X-Service-Route", "organization-service")
-                                .addResponseHeader("X-Gateway-Response", "organization-service")
+                                .addRequestHeader(GatewayConstants.HEADER_GATEWAY_REQUEST, GatewayConstants.HEADER_VALUE_TRUE)
+                                .addRequestHeader(GatewayConstants.HEADER_SERVICE_ROUTE, GatewayConstants.ORGANIZATION_SERVICE)
+                                .addResponseHeader(GatewayConstants.HEADER_GATEWAY_RESPONSE, GatewayConstants.ORGANIZATION_SERVICE)
                                 .requestRateLimiter(config -> config
                                         .setRateLimiter(redisRateLimiter())
                                         .setKeyResolver(userKeyResolver())
                                 )
                                 .circuitBreaker(config -> config
-                                        .setName("organization-service-cb")
-                                        .setFallbackUri("forward:/fallback/organization-service")
+                                        .setName(GatewayConstants.ORGANIZATION_SERVICE_CIRCUIT_BREAKER)
+                                        .setFallbackUri(GatewayConstants.ORGANIZATION_SERVICE_FALLBACK)
                                 )
                         )
-                        .uri(organizationServiceUrl) // ✅ Dynamic URL
+                        .uri(properties.getServices().getOrganizationServiceUrl())
                 )
 
-                // ===================================================================
-                // CHAT SERVICE - Protected Routes
-                // ===================================================================
-                .route("chat-service", r -> r
-                        .path("/api/v1/chat/**")
+                // Chat Service - Protected Routes
+                .route(GatewayConstants.CHAT_SERVICE_ROUTE, r -> r
+                        .path(GatewayConstants.CHAT_API_PATH)
                         .filters(f -> f
                                 .filter(jwtAuthenticationFilter.apply(new JwtAuthenticationFilter.Config()))
-                                .addRequestHeader("X-Gateway-Request", "true")
-                                .addRequestHeader("X-Service-Route", "chat-service")
-                                .addResponseHeader("X-Gateway-Response", "chat-service")
+                                .addRequestHeader(GatewayConstants.HEADER_GATEWAY_REQUEST, GatewayConstants.HEADER_VALUE_TRUE)
+                                .addRequestHeader(GatewayConstants.HEADER_SERVICE_ROUTE, GatewayConstants.CHAT_SERVICE)
+                                .addResponseHeader(GatewayConstants.HEADER_GATEWAY_RESPONSE, GatewayConstants.CHAT_SERVICE)
                                 .requestRateLimiter(config -> config
                                         .setRateLimiter(redisRateLimiter())
                                         .setKeyResolver(userKeyResolver())
                                 )
                                 .circuitBreaker(config -> config
-                                        .setName("chat-service-cb")
-                                        .setFallbackUri("forward:/fallback/chat-service")
+                                        .setName(GatewayConstants.CHAT_SERVICE_CIRCUIT_BREAKER)
+                                        .setFallbackUri(GatewayConstants.CHAT_SERVICE_FALLBACK)
                                 )
                         )
-                        .uri(chatServiceUrl) // ✅ Dynamic URL
+                        .uri(properties.getServices().getChatServiceUrl())
                 )
 
-                // ===================================================================
-                // ADMIN ROUTES - High Security
-                // ===================================================================
-                .route("admin-routes", r -> r
-                        .path("/api/v1/admin/**")
+                // Admin Routes - High Security
+                .route(GatewayConstants.ADMIN_ROUTES, r -> r
+                        .path(GatewayConstants.ADMIN_API_PATH)
                         .filters(f -> f
                                 .filter(jwtAuthenticationFilter.apply(new JwtAuthenticationFilter.Config()))
-                                .addRequestHeader("X-Gateway-Request", "true")
-                                .addRequestHeader("X-Service-Route", "admin-service")
-                                .addRequestHeader("X-Requires-Admin", "true")
-                                .addResponseHeader("X-Gateway-Response", "admin-service")
+                                .addRequestHeader(GatewayConstants.HEADER_GATEWAY_REQUEST, GatewayConstants.HEADER_VALUE_TRUE)
+                                .addRequestHeader(GatewayConstants.HEADER_SERVICE_ROUTE, GatewayConstants.ADMIN_SERVICE)
+                                .addRequestHeader(GatewayConstants.HEADER_REQUIRES_ADMIN, GatewayConstants.HEADER_VALUE_TRUE)
+                                .addResponseHeader(GatewayConstants.HEADER_GATEWAY_RESPONSE, GatewayConstants.ADMIN_SERVICE)
                                 .requestRateLimiter(config -> config
                                         .setRateLimiter(adminRateLimiter()) // Stricter rate limiting
                                         .setKeyResolver(userKeyResolver())
                                 )
                         )
-                        .uri(userServiceUrl) // Admin routes go to user service for now
+                        .uri(properties.getServices().getUserServiceUrl()) // Admin routes go to user service for now
                 )
 
                 .build();
     }
 
-    /**
-     * Redis Template for Rate Limiting
-     */
-    @Bean
-    public ReactiveRedisTemplate<String, String> reactiveRedisTemplate(RedisConnectionFactory connectionFactory) {
-        RedisSerializationContext<String, String> serializationContext = RedisSerializationContext
-                .<String, String>newSerializationContext()
-                .key(new StringRedisSerializer())
-                .value(new StringRedisSerializer())
-                .build();
-
-        return new ReactiveRedisTemplate<>(connectionFactory, serializationContext);
-    }
+    // Note: Using Spring Boot's auto-configured ReactiveRedisTemplate
+    // No need to create our own - Spring Boot provides one automatically
 
     /**
-     * Standard Rate Limiter - 10 requests per second, burst of 20
+     * Standard Rate Limiter - Using Properties (PRIMARY for Gateway auto-config)
      */
-    @Bean
+    @Bean(GatewayConstants.BEAN_REDIS_RATE_LIMITER)
+    @Primary
     public org.springframework.cloud.gateway.filter.ratelimit.RedisRateLimiter redisRateLimiter() {
-        return new org.springframework.cloud.gateway.filter.ratelimit.RedisRateLimiter(10, 20, 1);
+        return new org.springframework.cloud.gateway.filter.ratelimit.RedisRateLimiter(
+                properties.getRateLimit().getReplenishRate(),
+                properties.getRateLimit().getBurstCapacity(),
+                properties.getRateLimit().getRequestedTokens()
+        );
     }
 
     /**
-     * Admin Rate Limiter - Stricter: 5 requests per second, burst of 10
+     * Admin Rate Limiter - Stricter for admin operations
      */
-    @Bean
+    @Bean(GatewayConstants.BEAN_ADMIN_RATE_LIMITER)
     public org.springframework.cloud.gateway.filter.ratelimit.RedisRateLimiter adminRateLimiter() {
-        return new org.springframework.cloud.gateway.filter.ratelimit.RedisRateLimiter(5, 10, 1);
+        // Admin rate limiting is 50% of normal rate
+        int adminReplenishRate = properties.getRateLimit().getReplenishRate() / 2;
+        int adminBurstCapacity = properties.getRateLimit().getBurstCapacity() / 2;
+
+        return new org.springframework.cloud.gateway.filter.ratelimit.RedisRateLimiter(
+                adminReplenishRate,
+                adminBurstCapacity,
+                properties.getRateLimit().getRequestedTokens()
+        );
     }
 
     /**
-     * User-based Rate Limiting Key Resolver
+     * User-based Rate Limiting Key Resolver - Using Constants
      */
-    @Bean
+    @Bean(GatewayConstants.BEAN_USER_KEY_RESOLVER)
+    @Primary
     public org.springframework.cloud.gateway.filter.ratelimit.KeyResolver userKeyResolver() {
         return exchange -> {
-            String userId = exchange.getRequest().getHeaders().getFirst("X-User-Id");
-            return reactor.core.publisher.Mono.just(userId != null ? userId : "anonymous");
+            String userId = exchange.getRequest().getHeaders().getFirst(GatewayConstants.HEADER_USER_ID);
+            return reactor.core.publisher.Mono.just(userId != null ? userId : GatewayConstants.RATE_LIMIT_KEY_ANONYMOUS);
         };
     }
 
     /**
-     * IP-based Rate Limiting Key Resolver (for auth endpoints)
+     * IP-based Rate Limiting Key Resolver - Using Constants
      */
-    @Bean
+    @Bean(GatewayConstants.BEAN_IP_KEY_RESOLVER)
     public org.springframework.cloud.gateway.filter.ratelimit.KeyResolver ipKeyResolver() {
         return exchange -> {
             String clientIp = exchange.getRequest().getRemoteAddress() != null ?
-                    exchange.getRequest().getRemoteAddress().getAddress().getHostAddress() : "unknown";
+                    exchange.getRequest().getRemoteAddress().getAddress().getHostAddress() :
+                    GatewayConstants.RATE_LIMIT_KEY_UNKNOWN;
             return reactor.core.publisher.Mono.just(clientIp);
         };
     }

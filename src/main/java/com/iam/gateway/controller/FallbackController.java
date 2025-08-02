@@ -1,168 +1,143 @@
 package com.iam.gateway.controller;
 
 import com.iam.common.response.ApiResponse;
+import com.iam.gateway.config.ApiGatewayProperties;
+import com.iam.gateway.constants.GatewayConstants;
+import com.iam.gateway.constants.GatewayMessages;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.time.LocalDateTime;
 import java.util.Map;
 
 /**
- * Fallback Controller - Production Ready
- * Handles circuit breaker fallbacks when downstream services are unavailable
+ * Fallback Controller - Using Correct ApiResponse Factory Methods
+ * Compatible with iam-common-utilities ApiResponse class
  */
 @RestController
 @RequestMapping("/fallback")
+@RequiredArgsConstructor
 @Slf4j
 public class FallbackController {
 
-    @Value("${spring.application.name:iam-api-gateway}")
-    private String applicationName;
-
-    @Value("${fallback.retry-after-seconds:60}")
-    private int retryAfterSeconds;
+    private final ApiGatewayProperties properties;
 
     @GetMapping("/user-service")
     public ResponseEntity<ApiResponse<Map<String, Object>>> userServiceFallback() {
-        log.warn("User service circuit breaker activated - service is unavailable");
+        log.warn(GatewayMessages.LOG_CIRCUIT_BREAKER_ACTIVATED, GatewayConstants.USER_SERVICE);
 
         Map<String, Object> fallbackData = Map.of(
-                "service", "user-service",
-                "status", "UNAVAILABLE",
+                "service", GatewayConstants.USER_SERVICE,
+                "status", GatewayConstants.STATUS_UNAVAILABLE,
                 "fallback_triggered", true,
-                "retry_after_seconds", retryAfterSeconds,
-                "alternative_action", "Please try again later or contact support if the issue persists"
+                "retry_after_seconds", properties.getFallback().getRetryAfterSeconds(),
+                "service_url", properties.getServices().getUserServiceUrl(),
+                "alternative_action", GatewayMessages.ACTION_RETRY_LATER
         );
 
-        ApiResponse<Map<String, Object>> response = ApiResponse.<Map<String, Object>>builder()
-                .success(false)
-                .message("User service is temporarily unavailable")
-                .error("SERVICE_UNAVAILABLE")
-                .data(fallbackData)
-                .timestamp(LocalDateTime.now())
-                .build();
+        // Using your ApiResponse static factory method correctly
+        ApiResponse<Map<String, Object>> response = ApiResponse.success(fallbackData, GatewayMessages.USER_SERVICE_UNAVAILABLE);
 
         return ResponseEntity
                 .status(HttpStatus.SERVICE_UNAVAILABLE)
-                .header("Retry-After", String.valueOf(retryAfterSeconds))
-                .header("X-Fallback-Reason", "CIRCUIT_BREAKER_OPEN")
+                .header(GatewayConstants.HEADER_RETRY_AFTER, String.valueOf(properties.getFallback().getRetryAfterSeconds()))
+                .header(GatewayConstants.HEADER_FALLBACK_REASON, GatewayConstants.HEADER_VALUE_CIRCUIT_BREAKER_OPEN)
                 .body(response);
     }
 
     @GetMapping("/auth-service")
     public ResponseEntity<ApiResponse<Map<String, Object>>> authServiceFallback() {
-        log.warn("Auth service circuit breaker activated - authentication is unavailable");
+        log.warn(GatewayMessages.LOG_CIRCUIT_BREAKER_ACTIVATED, GatewayConstants.AUTH_SERVICE);
 
         Map<String, Object> fallbackData = Map.of(
-                "service", "auth-service",
-                "status", "UNAVAILABLE",
+                "service", GatewayConstants.AUTH_SERVICE,
+                "status", GatewayConstants.STATUS_UNAVAILABLE,
                 "fallback_triggered", true,
-                "retry_after_seconds", retryAfterSeconds,
-                "alternative_action", "Authentication is temporarily disabled. Cached tokens may still work.",
-                "impact", "New logins and token refreshes are unavailable"
+                "retry_after_seconds", properties.getFallback().getRetryAfterSeconds(),
+                "service_url", properties.getServices().getAuthServiceUrl(),
+                "alternative_action", GatewayMessages.ACTION_AUTH_DISABLED,
+                "impact", GatewayMessages.IMPACT_AUTH_SERVICE
         );
 
-        ApiResponse<Map<String, Object>> response = ApiResponse.<Map<String, Object>>builder()
-                .success(false)
-                .message("Authentication service is temporarily unavailable")
-                .error("AUTH_SERVICE_UNAVAILABLE")
-                .data(fallbackData)
-                .timestamp(LocalDateTime.now())
-                .build();
+        ApiResponse<Map<String, Object>> response = ApiResponse.success(fallbackData, GatewayMessages.AUTH_SERVICE_UNAVAILABLE);
 
         return ResponseEntity
                 .status(HttpStatus.SERVICE_UNAVAILABLE)
-                .header("Retry-After", String.valueOf(retryAfterSeconds))
-                .header("X-Fallback-Reason", "CIRCUIT_BREAKER_OPEN")
+                .header(GatewayConstants.HEADER_RETRY_AFTER, String.valueOf(properties.getFallback().getRetryAfterSeconds()))
+                .header(GatewayConstants.HEADER_FALLBACK_REASON, GatewayConstants.HEADER_VALUE_CIRCUIT_BREAKER_OPEN)
                 .body(response);
     }
 
     @GetMapping("/organization-service")
     public ResponseEntity<ApiResponse<Map<String, Object>>> organizationServiceFallback() {
-        log.warn("Organization service circuit breaker activated - service is unavailable");
+        log.warn(GatewayMessages.LOG_CIRCUIT_BREAKER_ACTIVATED, GatewayConstants.ORGANIZATION_SERVICE);
 
         Map<String, Object> fallbackData = Map.of(
-                "service", "organization-service",
-                "status", "UNAVAILABLE",
+                "service", GatewayConstants.ORGANIZATION_SERVICE,
+                "status", GatewayConstants.STATUS_UNAVAILABLE,
                 "fallback_triggered", true,
-                "retry_after_seconds", retryAfterSeconds,
-                "alternative_action", "Organization management is temporarily unavailable",
+                "retry_after_seconds", properties.getFallback().getRetryAfterSeconds(),
+                "service_url", properties.getServices().getOrganizationServiceUrl(),
+                "alternative_action", GatewayMessages.ACTION_ORG_UNAVAILABLE,
                 "cached_data_available", false
         );
 
-        ApiResponse<Map<String, Object>> response = ApiResponse.<Map<String, Object>>builder()
-                .success(false)
-                .message("Organization service is temporarily unavailable")
-                .error("ORGANIZATION_SERVICE_UNAVAILABLE")
-                .data(fallbackData)
-                .timestamp(LocalDateTime.now())
-                .build();
+        ApiResponse<Map<String, Object>> response = ApiResponse.success(fallbackData, GatewayMessages.ORGANIZATION_SERVICE_UNAVAILABLE);
 
         return ResponseEntity
                 .status(HttpStatus.SERVICE_UNAVAILABLE)
-                .header("Retry-After", String.valueOf(retryAfterSeconds))
-                .header("X-Fallback-Reason", "CIRCUIT_BREAKER_OPEN")
+                .header(GatewayConstants.HEADER_RETRY_AFTER, String.valueOf(properties.getFallback().getRetryAfterSeconds()))
+                .header(GatewayConstants.HEADER_FALLBACK_REASON, GatewayConstants.HEADER_VALUE_CIRCUIT_BREAKER_OPEN)
                 .body(response);
     }
 
     @GetMapping("/chat-service")
     public ResponseEntity<ApiResponse<Map<String, Object>>> chatServiceFallback() {
-        log.warn("Chat service circuit breaker activated - service is unavailable");
+        log.warn(GatewayMessages.LOG_CIRCUIT_BREAKER_ACTIVATED, GatewayConstants.CHAT_SERVICE);
 
         Map<String, Object> fallbackData = Map.of(
-                "service", "chat-service",
-                "status", "UNAVAILABLE",
+                "service", GatewayConstants.CHAT_SERVICE,
+                "status", GatewayConstants.STATUS_UNAVAILABLE,
                 "fallback_triggered", true,
-                "retry_after_seconds", retryAfterSeconds,
-                "alternative_action", "Real-time messaging is temporarily unavailable",
-                "websocket_connections", "DISABLED"
+                "retry_after_seconds", properties.getFallback().getRetryAfterSeconds(),
+                "service_url", properties.getServices().getChatServiceUrl(),
+                "alternative_action", GatewayMessages.ACTION_CHAT_UNAVAILABLE,
+                "impact", GatewayMessages.IMPACT_CHAT_SERVICE
         );
 
-        ApiResponse<Map<String, Object>> response = ApiResponse.<Map<String, Object>>builder()
-                .success(false)
-                .message("Chat service is temporarily unavailable")
-                .error("CHAT_SERVICE_UNAVAILABLE")
-                .data(fallbackData)
-                .timestamp(LocalDateTime.now())
-                .build();
+        ApiResponse<Map<String, Object>> response = ApiResponse.success(fallbackData, GatewayMessages.CHAT_SERVICE_UNAVAILABLE);
 
         return ResponseEntity
                 .status(HttpStatus.SERVICE_UNAVAILABLE)
-                .header("Retry-After", String.valueOf(retryAfterSeconds))
-                .header("X-Fallback-Reason", "CIRCUIT_BREAKER_OPEN")
+                .header(GatewayConstants.HEADER_RETRY_AFTER, String.valueOf(properties.getFallback().getRetryAfterSeconds()))
+                .header(GatewayConstants.HEADER_FALLBACK_REASON, GatewayConstants.HEADER_VALUE_CIRCUIT_BREAKER_OPEN)
                 .body(response);
     }
 
     @GetMapping("/admin-service")
     public ResponseEntity<ApiResponse<Map<String, Object>>> adminServiceFallback() {
-        log.warn("Admin service circuit breaker activated - administrative functions unavailable");
+        log.warn(GatewayMessages.LOG_CIRCUIT_BREAKER_ACTIVATED, GatewayConstants.ADMIN_SERVICE);
 
         Map<String, Object> fallbackData = Map.of(
-                "service", "admin-service",
-                "status", "UNAVAILABLE",
+                "service", GatewayConstants.ADMIN_SERVICE,
+                "status", GatewayConstants.STATUS_UNAVAILABLE,
                 "fallback_triggered", true,
-                "retry_after_seconds", retryAfterSeconds,
-                "alternative_action", "Administrative functions are temporarily unavailable",
-                "impact", "User management and system configuration disabled"
+                "retry_after_seconds", properties.getFallback().getRetryAfterSeconds(),
+                "service_url", properties.getServices().getUserServiceUrl(), // Admin goes through user service
+                "alternative_action", GatewayMessages.ACTION_ADMIN_UNAVAILABLE,
+                "impact", GatewayMessages.IMPACT_ADMIN_SERVICE
         );
 
-        ApiResponse<Map<String, Object>> response = ApiResponse.<Map<String, Object>>builder()
-                .success(false)
-                .message("Administrative service is temporarily unavailable")
-                .error("ADMIN_SERVICE_UNAVAILABLE")
-                .data(fallbackData)
-                .timestamp(LocalDateTime.now())
-                .build();
+        ApiResponse<Map<String, Object>> response = ApiResponse.success(fallbackData, GatewayMessages.ADMIN_SERVICE_UNAVAILABLE);
 
         return ResponseEntity
                 .status(HttpStatus.SERVICE_UNAVAILABLE)
-                .header("Retry-After", String.valueOf(retryAfterSeconds))
-                .header("X-Fallback-Reason", "CIRCUIT_BREAKER_OPEN")
+                .header(GatewayConstants.HEADER_RETRY_AFTER, String.valueOf(properties.getFallback().getRetryAfterSeconds()))
+                .header(GatewayConstants.HEADER_FALLBACK_REASON, GatewayConstants.HEADER_VALUE_CIRCUIT_BREAKER_OPEN)
                 .body(response);
     }
 
@@ -175,24 +150,18 @@ public class FallbackController {
 
         Map<String, Object> fallbackData = Map.of(
                 "service", "unknown",
-                "status", "UNAVAILABLE",
+                "status", GatewayConstants.STATUS_UNAVAILABLE,
                 "fallback_triggered", true,
-                "retry_after_seconds", retryAfterSeconds,
-                "alternative_action", "The requested service is temporarily unavailable"
+                "retry_after_seconds", properties.getFallback().getRetryAfterSeconds(),
+                "alternative_action", GatewayMessages.ACTION_UNKNOWN_SERVICE
         );
 
-        ApiResponse<Map<String, Object>> response = ApiResponse.<Map<String, Object>>builder()
-                .success(false)
-                .message("Service temporarily unavailable")
-                .error("SERVICE_UNAVAILABLE")
-                .data(fallbackData)
-                .timestamp(LocalDateTime.now())
-                .build();
+        ApiResponse<Map<String, Object>> response = ApiResponse.success(fallbackData, GatewayMessages.GENERIC_SERVICE_UNAVAILABLE);
 
         return ResponseEntity
                 .status(HttpStatus.SERVICE_UNAVAILABLE)
-                .header("Retry-After", String.valueOf(retryAfterSeconds))
-                .header("X-Fallback-Reason", "CIRCUIT_BREAKER_OPEN")
+                .header(GatewayConstants.HEADER_RETRY_AFTER, String.valueOf(properties.getFallback().getRetryAfterSeconds()))
+                .header(GatewayConstants.HEADER_FALLBACK_REASON, GatewayConstants.HEADER_VALUE_CIRCUIT_BREAKER_OPEN)
                 .body(response);
     }
 }

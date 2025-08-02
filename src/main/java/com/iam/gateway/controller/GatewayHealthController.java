@@ -1,9 +1,11 @@
 package com.iam.gateway.controller;
 
-import com.iam.common.dto.ApiResponse;
+import com.iam.common.response.ApiResponse;
+import com.iam.gateway.config.ApiGatewayProperties;
+import com.iam.gateway.constants.GatewayConstants;
+import com.iam.gateway.constants.GatewayMessages;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.ReactiveRedisTemplate;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -18,8 +20,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * Gateway Health Controller - Production Ready
- * Comprehensive health checks for gateway and all downstream services
+ * Gateway Health Controller - Using Constants and Correct ApiResponse
  */
 @RestController
 @RequestMapping("/api/v1/gateway")
@@ -29,206 +30,191 @@ public class GatewayHealthController {
 
     private final ReactiveRedisTemplate<String, String> redisTemplate;
     private final WebClient.Builder webClientBuilder;
-
-    // Service URLs from configuration
-    @Value("${services.user-service.url:http://localhost:8081}")
-    private String userServiceUrl;
-
-    @Value("${services.auth-service.url:http://localhost:8082}")
-    private String authServiceUrl;
-
-    @Value("${services.organization-service.url:http://localhost:8083}")
-    private String organizationServiceUrl;
-
-    @Value("${services.chat-service.url:http://localhost:8084}")
-    private String chatServiceUrl;
-
-    @Value("${spring.application.name:iam-api-gateway}")
-    private String applicationName;
-
-    @Value("${server.port:8080}")
-    private int serverPort;
+    private final ApiGatewayProperties properties;
 
     @GetMapping("/health")
     public Mono<ResponseEntity<ApiResponse<Map<String, Object>>>> health() {
-        log.info("Gateway comprehensive health check requested");
+        log.info(GatewayMessages.LOG_GATEWAY_HEALTH_REQUESTED);
 
         Map<String, Object> healthStatus = new HashMap<>();
-        healthStatus.put("gateway", "UP");
-        healthStatus.put("application", applicationName);
-        healthStatus.put("port", serverPort);
+        healthStatus.put("gateway", GatewayConstants.STATUS_UP);
+        healthStatus.put("application", GatewayConstants.APPLICATION_NAME);
+        healthStatus.put("port", GatewayConstants.DEFAULT_PORT);
         healthStatus.put("timestamp", LocalDateTime.now());
 
         return checkAllServices()
                 .map(services -> {
                     healthStatus.put("services", services);
-                    healthStatus.put("service_urls", getServiceUrls());
+                    healthStatus.put("service_urls", properties.getServiceUrlsMap());
 
                     String overallStatus = calculateOverallStatus(services);
                     healthStatus.put("overall_status", overallStatus);
                     healthStatus.put("healthy_services", countHealthyServices(services));
                     healthStatus.put("total_services", services.size());
 
+                    // Using correct ApiResponse factory method
                     ApiResponse<Map<String, Object>> response = ApiResponse.success(
                             healthStatus,
-                            String.format("Gateway health check completed - Status: %s", overallStatus)
+                            String.format(GatewayMessages.HEALTH_CHECK_COMPLETED, overallStatus)
                     );
 
                     return ResponseEntity.ok(response);
                 })
-                .onErrorReturn(error -> {
-                    log.error("Error during health check: {}", error.getMessage(), error);
+                .onErrorResume(error -> {
+                    log.error("Error during health check: {}", error.toString(), error);
 
                     healthStatus.put("services", "ERROR - Could not check downstream services");
-                    healthStatus.put("error", error.getMessage());
-                    healthStatus.put("overall_status", "CRITICAL");
+                    healthStatus.put("error", error.toString());
+                    healthStatus.put("overall_status", GatewayConstants.STATUS_CRITICAL);
 
                     ApiResponse<Map<String, Object>> response = ApiResponse.success(
                             healthStatus,
-                            "Gateway is up but could not verify all services"
+                            GatewayMessages.HEALTH_CHECK_ERROR
                     );
 
-                    return ResponseEntity.status(503).body(response);
+                    return Mono.just(ResponseEntity.status(503).body(response));
                 });
     }
 
     @GetMapping("/info")
     public ResponseEntity<ApiResponse<Map<String, Object>>> info() {
         Map<String, Object> info = new HashMap<>();
-        info.put("service", applicationName);
-        info.put("version", "1.0.0");
-        info.put("description", "IAM API Gateway - Central routing for all IAM microservices");
-        info.put("port", serverPort);
-        info.put("build_time", LocalDateTime.now().toString()); // In real app, get from build info
+        info.put("service", GatewayConstants.APPLICATION_NAME);
+        info.put("version", GatewayConstants.APPLICATION_VERSION);
+        info.put("description", GatewayConstants.APPLICATION_DESCRIPTION);
+        info.put("port", GatewayConstants.DEFAULT_PORT);
 
-        // Service routing information
+        // Service routing information using constants
+
         Map<String, String> routes = new HashMap<>();
-        routes.put("/api/v1/users/**", String.format("User Service (%s)", userServiceUrl));
-        routes.put("/api/v1/auth/**", String.format("Auth Service (%s)", authServiceUrl));
-        routes.put("/api/v1/organizations/**", String.format("Organization Service (%s)", organizationServiceUrl));
-        routes.put("/api/v1/chat/**", String.format("Chat Service (%s)", chatServiceUrl));
-        routes.put("/api/v1/admin/**", "Admin Service (via User Service)");
+        routes.put(GatewayConstants.USERS_API_PATH,
+                String.format("User Service (%s)", properties.getServices().getUserServiceUrl()));
+        routes.put(GatewayConstants.AUTH_API_PATH,
+                String.format("Auth Service (%s)", properties.getServices().getAuthServiceUrl()));
+        routes.put(GatewayConstants.ORGANIZATIONS_API_PATH,
+                String.format("Organization Service (%s)", properties.getServices().getOrganizationServiceUrl()));
+        routes.put(GatewayConstants.CHAT_API_PATH,
+                String.format("Chat Service (%s)", properties.getServices().getChatServiceUrl()));
+        routes.put(GatewayConstants.ADMIN_API_PATH, "Admin Service (via User Service)");
 
         info.put("routes", routes);
 
-        // Features
+        // Features using message constants
         info.put("features", Map.of(
-                "jwt_authentication", true,
-                "rate_limiting", true,
-                "circuit_breakers", true,
-                "cors_support", true,
-                "health_aggregation", true,
-                "request_logging", true
+                "jwt_authentication", GatewayMessages.FEATURE_JWT_AUTH,
+                "rate_limiting", GatewayMessages.FEATURE_RATE_LIMITING,
+                "circuit_breakers", GatewayMessages.FEATURE_CIRCUIT_BREAKERS,
+                "cors_support", GatewayMessages.FEATURE_CORS_SUPPORT,
+                "health_aggregation", GatewayMessages.FEATURE_HEALTH_AGGREGATION,
+                "request_logging", GatewayMessages.FEATURE_REQUEST_LOGGING
         ));
 
         info.put("timestamp", LocalDateTime.now());
 
-        return ResponseEntity.ok(ApiResponse.success(info, "Gateway information"));
+        return ResponseEntity.ok(ApiResponse.success(info, GatewayMessages.GATEWAY_INFO_SUCCESS));
     }
 
     @GetMapping("/metrics")
     public ResponseEntity<ApiResponse<Map<String, Object>>> metrics() {
         Map<String, Object> metrics = new HashMap<>();
 
-        // In a real application, you would collect actual metrics
+        // Placeholder for actual metrics (would be collected from actuator)
         metrics.put("requests_total", "tracked_in_actuator");
         metrics.put("active_connections", "tracked_in_actuator");
         metrics.put("response_times", "tracked_in_actuator");
         metrics.put("circuit_breaker_states", "tracked_in_actuator");
 
-        metrics.put("service_urls", getServiceUrls());
+        metrics.put("service_urls", properties.getServiceUrlsMap());
         metrics.put("timestamp", LocalDateTime.now());
 
-        return ResponseEntity.ok(ApiResponse.success(metrics,
-                "Gateway metrics (detailed metrics available at /actuator/metrics)"));
+        return ResponseEntity.ok(ApiResponse.success(metrics, GatewayMessages.METRICS_SUCCESS));
     }
 
+    /**
+     * Check all downstream services - Using Constants
+     */
     private Mono<Map<String, String>> checkAllServices() {
         WebClient webClient = webClientBuilder.build();
 
         // Check User Service
         Mono<String> userServiceHealth = webClient.get()
-                .uri(userServiceUrl + "/api/v1/users/health")
+                .uri(properties.getServices().getUserServiceUrl() + GatewayConstants.USERS_HEALTH_PATH)
                 .retrieve()
                 .bodyToMono(String.class)
-                .map(response -> "UP")
-                .onErrorReturn("DOWN")
-                .timeout(Duration.ofSeconds(5))
-                .doOnError(error -> log.warn("User service health check failed: {}", error.getMessage()));
+                .map(response -> GatewayConstants.STATUS_UP)
+                .onErrorReturn(GatewayConstants.STATUS_DOWN)
+                .timeout(Duration.ofSeconds(GatewayConstants.HEALTH_CHECK_TIMEOUT))
+                .doOnError(error -> log.warn("User service health check failed: {}", error.toString()));
 
         // Check Auth Service
         Mono<String> authServiceHealth = webClient.get()
-                .uri(authServiceUrl + "/api/v1/auth/health")
+                .uri(properties.getServices().getAuthServiceUrl() + "/api/v1/auth/health")
                 .retrieve()
                 .bodyToMono(String.class)
-                .map(response -> "UP")
-                .onErrorReturn("DOWN")
-                .timeout(Duration.ofSeconds(5))
-                .doOnError(error -> log.warn("Auth service health check failed: {}", error.getMessage()));
+                .map(response -> GatewayConstants.STATUS_UP)
+                .onErrorReturn(GatewayConstants.STATUS_DOWN)
+                .timeout(Duration.ofSeconds(GatewayConstants.HEALTH_CHECK_TIMEOUT))
+                .doOnError(error -> log.warn("Auth service health check failed: {}", error.toString()));
 
-        // Check Organization Service (future)
-        Mono<String> organizationServiceHealth = Mono.just("NOT_IMPLEMENTED");
-
-        // Check Chat Service (future)
-        Mono<String> chatServiceHealth = Mono.just("NOT_IMPLEMENTED");
+        // Future services - using constants
+        Mono<String> organizationServiceHealth = Mono.just(GatewayConstants.STATUS_NOT_IMPLEMENTED);
+        Mono<String> chatServiceHealth = Mono.just(GatewayConstants.STATUS_NOT_IMPLEMENTED);
 
         // Check Redis
         Mono<String> redisHealth = redisTemplate.opsForValue()
-                .set("gateway:health:check", "ping")
-                .then(redisTemplate.opsForValue().get("gateway:health:check"))
-                .map(value -> "ping".equals(value) ? "UP" : "DOWN")
-                .onErrorReturn("DOWN")
-                .timeout(Duration.ofSeconds(3))
-                .doOnError(error -> log.warn("Redis health check failed: {}", error.getMessage()));
+                .set(GatewayConstants.REDIS_HEALTH_CHECK_KEY, GatewayConstants.REDIS_HEALTH_CHECK_VALUE)
+                .then(redisTemplate.opsForValue().get(GatewayConstants.REDIS_HEALTH_CHECK_KEY))
+                .map(value -> GatewayConstants.REDIS_HEALTH_CHECK_VALUE.equals(value) ?
+                        GatewayConstants.STATUS_UP : GatewayConstants.STATUS_DOWN)
+                .onErrorReturn(GatewayConstants.STATUS_DOWN)
+                .timeout(Duration.ofSeconds(GatewayConstants.REDIS_TIMEOUT))
+                .doOnError(error -> log.warn("Redis health check failed: {}", error.toString()));
 
         return Mono.zip(userServiceHealth, authServiceHealth, organizationServiceHealth, chatServiceHealth, redisHealth)
                 .map(tuple -> {
                     Map<String, String> services = new HashMap<>();
-                    services.put("user-service", tuple.getT1());
-                    services.put("auth-service", tuple.getT2());
-                    services.put("organization-service", tuple.getT3());
-                    services.put("chat-service", tuple.getT4());
+                    services.put(GatewayConstants.USER_SERVICE, tuple.getT1());
+                    services.put(GatewayConstants.AUTH_SERVICE, tuple.getT2());
+                    services.put(GatewayConstants.ORGANIZATION_SERVICE, tuple.getT3());
+                    services.put(GatewayConstants.CHAT_SERVICE, tuple.getT4());
                     services.put("redis", tuple.getT5());
                     return services;
                 });
     }
 
-    private Map<String, String> getServiceUrls() {
-        Map<String, String> urls = new HashMap<>();
-        urls.put("user-service", userServiceUrl);
-        urls.put("auth-service", authServiceUrl);
-        urls.put("organization-service", organizationServiceUrl);
-        urls.put("chat-service", chatServiceUrl);
-        return urls;
-    }
-
+    /**
+     * Calculate overall system status - Using Constants
+     */
     private String calculateOverallStatus(Map<String, String> services) {
         long upServices = services.values().stream()
-                .filter(status -> "UP".equals(status))
+                .filter(GatewayConstants.STATUS_UP::equals)
                 .count();
 
         long downServices = services.values().stream()
-                .filter(status -> "DOWN".equals(status))
+                .filter(GatewayConstants.STATUS_DOWN::equals)
                 .count();
 
         long notImplementedServices = services.values().stream()
-                .filter(status -> "NOT_IMPLEMENTED".equals(status))
+                .filter(GatewayConstants.STATUS_NOT_IMPLEMENTED::equals)
                 .count();
 
         if (downServices > 0) {
-            return "DEGRADED";
+            return GatewayConstants.STATUS_DEGRADED;
         } else if (notImplementedServices > 0 && upServices > 0) {
-            return "PARTIAL";
-        } else if (upServices >= 2) { // At least user and auth services should be up
-            return "HEALTHY";
+            return GatewayConstants.STATUS_PARTIAL;
+        } else if (upServices >= 2) { // At least user and auth services
+            return GatewayConstants.STATUS_HEALTHY;
         } else {
-            return "CRITICAL";
+            return GatewayConstants.STATUS_CRITICAL;
         }
     }
 
+    /**
+     * Count healthy services - Using Constants
+     */
     private long countHealthyServices(Map<String, String> services) {
         return services.values().stream()
-                .filter(status -> "UP".equals(status))
+                .filter(GatewayConstants.STATUS_UP::equals)
                 .count();
     }
 }

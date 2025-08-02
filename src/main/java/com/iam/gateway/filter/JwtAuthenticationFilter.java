@@ -3,6 +3,8 @@ package com.iam.gateway.filter;
 import com.iam.common.jwt.JwtTokenProvider;
 import com.iam.gateway.constants.GatewayConstants;
 import com.iam.gateway.constants.GatewayMessages;
+import lombok.Getter;
+import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cloud.gateway.filter.GatewayFilter;
@@ -21,8 +23,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * JWT Authentication Filter - Zero Hardcoded Strings
- * Fixed dependency injection for JwtTokenProvider
+ * JWT Authentication Filter - Reactive Version
  */
 @Component
 @Slf4j
@@ -87,49 +88,45 @@ public class JwtAuthenticationFilter extends AbstractGatewayFilterFactory<JwtAut
                 return handleUnauthorized(exchange, GatewayMessages.AUTH_MISSING_TOKEN);
             }
 
-            try {
-                // Validate JWT token
-                if (!jwtTokenProvider.validateToken(token)) {
-                    log.warn(GatewayMessages.LOG_INVALID_JWT_TOKEN, method, path);
-                    return handleUnauthorized(exchange, GatewayMessages.AUTH_INVALID_TOKEN);
-                }
+            // REACTIVE JWT VALIDATION
+            return jwtTokenProvider.validateToken(token)
+                    .flatMap(claims -> {
+                        // Extract username from claims
+                        String username = claims.getSubject();
 
-                // Extract user information from token
-                String username = jwtTokenProvider.extractUsername(token);
+                        if (!StringUtils.hasText(username)) {
+                            log.warn(GatewayMessages.LOG_UNABLE_EXTRACT_USERNAME, method, path);
+                            return handleUnauthorized(exchange, GatewayMessages.AUTH_INVALID_PAYLOAD);
+                        }
 
-                if (!StringUtils.hasText(username)) {
-                    log.warn(GatewayMessages.LOG_UNABLE_EXTRACT_USERNAME, method, path);
-                    return handleUnauthorized(exchange, GatewayMessages.AUTH_INVALID_PAYLOAD);
-                }
+                        // Add user context to request headers for downstream services
+                        ServerHttpRequest modifiedRequest = request.mutate()
+                                .header(GatewayConstants.HEADER_USER_ID, username)
+                                .header(GatewayConstants.HEADER_AUTHENTICATED, GatewayConstants.HEADER_VALUE_TRUE)
+                                .header(GatewayConstants.HEADER_AUTH_TIME, LocalDateTime.now().toString())
+                                .header(GatewayConstants.HEADER_TOKEN_EXPIRES, String.valueOf(jwtTokenProvider.getExpirationTime()))
+                                .build();
 
-                // Add user context to request headers for downstream services
-                ServerHttpRequest modifiedRequest = request.mutate()
-                        .header(GatewayConstants.HEADER_USER_ID, username)
-                        .header(GatewayConstants.HEADER_AUTHENTICATED, GatewayConstants.HEADER_VALUE_TRUE)
-                        .header(GatewayConstants.HEADER_AUTH_TIME, LocalDateTime.now().toString())
-                        .header(GatewayConstants.HEADER_TOKEN_EXPIRES, String.valueOf(jwtTokenProvider.getExpirationTime()))
-                        .build();
+                        log.debug(GatewayMessages.AUTHENTICATION_SUCCESS, username, method, path);
 
-                log.debug(GatewayMessages.AUTHENTICATION_SUCCESS, username, method, path);
-
-                return chain.filter(exchange.mutate().request(modifiedRequest).build());
-
-            } catch (io.jsonwebtoken.ExpiredJwtException e) {
-                log.warn(GatewayMessages.LOG_EXPIRED_JWT_TOKEN, method, path, e.getMessage());
-                return handleUnauthorized(exchange, GatewayMessages.AUTH_EXPIRED_TOKEN);
-
-            } catch (io.jsonwebtoken.MalformedJwtException e) {
-                log.warn(GatewayMessages.LOG_MALFORMED_JWT_TOKEN, method, path, e.getMessage());
-                return handleUnauthorized(exchange, GatewayMessages.AUTH_MALFORMED_TOKEN);
-
-            } catch (io.jsonwebtoken.SignatureException e) {
-                log.warn(GatewayMessages.LOG_INVALID_JWT_SIGNATURE, method, path, e.getMessage());
-                return handleUnauthorized(exchange, GatewayMessages.AUTH_INVALID_SIGNATURE);
-
-            } catch (Exception e) {
-                log.error(GatewayMessages.LOG_UNEXPECTED_JWT_ERROR, method, path, e.getMessage(), e);
-                return handleUnauthorized(exchange, GatewayMessages.AUTH_FAILED);
-            }
+                        return chain.filter(exchange.mutate().request(modifiedRequest).build());
+                    })
+                    .onErrorResume(io.jsonwebtoken.ExpiredJwtException.class, e -> {
+                        log.warn(GatewayMessages.LOG_EXPIRED_JWT_TOKEN, method, path, e.getMessage());
+                        return handleUnauthorized(exchange, GatewayMessages.AUTH_EXPIRED_TOKEN);
+                    })
+                    .onErrorResume(io.jsonwebtoken.MalformedJwtException.class, e -> {
+                        log.warn(GatewayMessages.LOG_MALFORMED_JWT_TOKEN, method, path, e.getMessage());
+                        return handleUnauthorized(exchange, GatewayMessages.AUTH_MALFORMED_TOKEN);
+                    })
+                    .onErrorResume(io.jsonwebtoken.security.SignatureException.class, e -> {
+                        log.warn(GatewayMessages.LOG_INVALID_JWT_SIGNATURE, method, path, e.getMessage());
+                        return handleUnauthorized(exchange, GatewayMessages.AUTH_INVALID_SIGNATURE);
+                    })
+                    .onErrorResume(Exception.class, e -> {
+                        log.error(GatewayMessages.LOG_UNEXPECTED_JWT_ERROR, method, path, e.getMessage(), e);
+                        return handleUnauthorized(exchange, GatewayMessages.AUTH_FAILED);
+                    });
         };
     }
 
@@ -199,35 +196,14 @@ public class JwtAuthenticationFilter extends AbstractGatewayFilterFactory<JwtAut
     }
 
     /**
-     * Configuration class for JWT filter - Using Constants
+     * Configuration class for JWT filter
      */
+    @Setter
+    @Getter
     public static class Config {
         private boolean enabled = true;
         private boolean strictMode = true;
         private long tokenExpirationTolerance = 300; // 5 minutes tolerance for clock skew
 
-        public boolean isEnabled() {
-            return enabled;
-        }
-
-        public void setEnabled(boolean enabled) {
-            this.enabled = enabled;
-        }
-
-        public boolean isStrictMode() {
-            return strictMode;
-        }
-
-        public void setStrictMode(boolean strictMode) {
-            this.strictMode = strictMode;
-        }
-
-        public long getTokenExpirationTolerance() {
-            return tokenExpirationTolerance;
-        }
-
-        public void setTokenExpirationTolerance(long tokenExpirationTolerance) {
-            this.tokenExpirationTolerance = tokenExpirationTolerance;
-        }
     }
 }

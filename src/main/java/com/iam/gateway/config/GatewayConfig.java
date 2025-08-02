@@ -12,7 +12,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
 
 /**
- * Gateway Configuration - Zero Hardcoded Strings
+ * Gateway Configuration - With Redis Rate Limiting
  * All strings managed through constants and properties
  */
 @Configuration
@@ -28,8 +28,6 @@ public class GatewayConfig {
         log.info(GatewayMessages.LOG_CONFIGURING_ROUTES);
         log.info("User Service: {}", properties.getServices().getUserServiceUrl());
         log.info("Auth Service: {}", properties.getServices().getAuthServiceUrl());
-        log.info("Organization Service: {}", properties.getServices().getOrganizationServiceUrl());
-        log.info("Chat Service: {}", properties.getServices().getChatServiceUrl());
 
         return builder.routes()
                 // User Service - Protected Routes with JWT Authentication
@@ -83,68 +81,8 @@ public class GatewayConfig {
                         .uri(properties.getServices().getAuthServiceUrl())
                 )
 
-                // Organization Service - Protected Routes
-                .route(GatewayConstants.ORGANIZATION_SERVICE_ROUTE, r -> r
-                        .path(GatewayConstants.ORGANIZATIONS_API_PATH)
-                        .filters(f -> f
-                                .filter(jwtAuthenticationFilter.apply(new JwtAuthenticationFilter.Config()))
-                                .addRequestHeader(GatewayConstants.HEADER_GATEWAY_REQUEST, GatewayConstants.HEADER_VALUE_TRUE)
-                                .addRequestHeader(GatewayConstants.HEADER_SERVICE_ROUTE, GatewayConstants.ORGANIZATION_SERVICE)
-                                .addResponseHeader(GatewayConstants.HEADER_GATEWAY_RESPONSE, GatewayConstants.ORGANIZATION_SERVICE)
-                                .requestRateLimiter(config -> config
-                                        .setRateLimiter(redisRateLimiter())
-                                        .setKeyResolver(userKeyResolver())
-                                )
-                                .circuitBreaker(config -> config
-                                        .setName(GatewayConstants.ORGANIZATION_SERVICE_CIRCUIT_BREAKER)
-                                        .setFallbackUri(GatewayConstants.ORGANIZATION_SERVICE_FALLBACK)
-                                )
-                        )
-                        .uri(properties.getServices().getOrganizationServiceUrl())
-                )
-
-                // Chat Service - Protected Routes
-                .route(GatewayConstants.CHAT_SERVICE_ROUTE, r -> r
-                        .path(GatewayConstants.CHAT_API_PATH)
-                        .filters(f -> f
-                                .filter(jwtAuthenticationFilter.apply(new JwtAuthenticationFilter.Config()))
-                                .addRequestHeader(GatewayConstants.HEADER_GATEWAY_REQUEST, GatewayConstants.HEADER_VALUE_TRUE)
-                                .addRequestHeader(GatewayConstants.HEADER_SERVICE_ROUTE, GatewayConstants.CHAT_SERVICE)
-                                .addResponseHeader(GatewayConstants.HEADER_GATEWAY_RESPONSE, GatewayConstants.CHAT_SERVICE)
-                                .requestRateLimiter(config -> config
-                                        .setRateLimiter(redisRateLimiter())
-                                        .setKeyResolver(userKeyResolver())
-                                )
-                                .circuitBreaker(config -> config
-                                        .setName(GatewayConstants.CHAT_SERVICE_CIRCUIT_BREAKER)
-                                        .setFallbackUri(GatewayConstants.CHAT_SERVICE_FALLBACK)
-                                )
-                        )
-                        .uri(properties.getServices().getChatServiceUrl())
-                )
-
-                // Admin Routes - High Security
-                .route(GatewayConstants.ADMIN_ROUTES, r -> r
-                        .path(GatewayConstants.ADMIN_API_PATH)
-                        .filters(f -> f
-                                .filter(jwtAuthenticationFilter.apply(new JwtAuthenticationFilter.Config()))
-                                .addRequestHeader(GatewayConstants.HEADER_GATEWAY_REQUEST, GatewayConstants.HEADER_VALUE_TRUE)
-                                .addRequestHeader(GatewayConstants.HEADER_SERVICE_ROUTE, GatewayConstants.ADMIN_SERVICE)
-                                .addRequestHeader(GatewayConstants.HEADER_REQUIRES_ADMIN, GatewayConstants.HEADER_VALUE_TRUE)
-                                .addResponseHeader(GatewayConstants.HEADER_GATEWAY_RESPONSE, GatewayConstants.ADMIN_SERVICE)
-                                .requestRateLimiter(config -> config
-                                        .setRateLimiter(adminRateLimiter()) // Stricter rate limiting
-                                        .setKeyResolver(userKeyResolver())
-                                )
-                        )
-                        .uri(properties.getServices().getUserServiceUrl()) // Admin routes go to user service for now
-                )
-
                 .build();
     }
-
-    // Note: Using Spring Boot's auto-configured ReactiveRedisTemplate
-    // No need to create our own - Spring Boot provides one automatically
 
     /**
      * Standard Rate Limiter - Using Properties (PRIMARY for Gateway auto-config)

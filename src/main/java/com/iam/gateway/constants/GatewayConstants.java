@@ -190,4 +190,85 @@ public final class GatewayConstants {
     public static final String BEAN_WEB_CLIENT = "webClient";
     public static final String BEAN_JWT_DECODER = "jwtDecoder";
     public static final String BEAN_GATEWAY_FILTER_FACTORY = "gatewayFilterFactory";
+
+    // ===================================================================
+    // PUBLIC ENDPOINTS (No Authentication Required)
+    // ===================================================================
+    public static final String AUTH_LOGIN_PATH = "/api/v1/auth/login";
+    public static final String AUTH_REGISTER_PATH = "/api/v1/auth/register";
+    public static final String AUTH_REFRESH_PATH = "/api/v1/auth/refresh";
+    public static final String AUTH_FORGOT_PASSWORD_PATH = "/api/v1/auth/forgot-password";
+    public static final String AUTH_RESET_PASSWORD_PATH = "/api/v1/auth/reset-password";
+    public static final String AUTH_HEALTH_PATH = "/api/v1/auth/health";
+    public static final String GATEWAY_API_PREFIX = "/api/v1/gateway";
+    public static final String HEALTH_ENDPOINT = "/health";
+    public static final String GATEWAY_KEY = "gateway";
+    public static final String APPLICATION_KEY = "application";
+    public static final String PORT_KEY = "port";
+    public static final String TIMESTAMP_KEY = "timestamp";
+    public static final String SERVICES_KEY = "services";
+    public static final String SERVICE_URLS_KEY = "service_urls";
+    public static final String OVERALL_STATUS_KEY = "overall_status";
+    public static final String HEALTHY_SERVICES_KEY = "healthy_services";
+    public static final String TOTAL_SERVICES_KEY = "total_services";
+    public static final String ERROR_KEY = "error";
+
+    // Add these to your GatewayConstants class:
+
+    // ===================================================================
+    // API ENDPOINTS
+    // ===================================================================
+    public static final String FALLBACK_PREFIX = "/fallback";
+    public static final String INFO_ENDPOINT = "/info";
+    public static final String METRICS_ENDPOINT = "/metrics";
+
+    // ===================================================================
+    // FALLBACK PATHS
+    // ===================================================================
+    public static final String USER_SERVICE_FALLBACK_PATH = "/user-service";
+    public static final String AUTH_SERVICE_FALLBACK_PATH = "/auth-service";
+    public static final String ORGANIZATION_SERVICE_FALLBACK_PATH = "/organization-service";
+    public static final String CHAT_SERVICE_FALLBACK_PATH = "/chat-service";
+    public static final String ADMIN_SERVICE_FALLBACK_PATH = "/admin-service";
+    public static final String GENERIC_FALLBACK_PATH = "/**";
+
+    // ===================================================================
+    // JSON KEYS
+    // ===================================================================
+
+    public static final String SERVICE_KEY = "service";
+    public static final String VERSION_KEY = "version";
+    public static final String DESCRIPTION_KEY = "description";
+
+    public static final String ROUTES_KEY = "routes";
+    public static final String FEATURES_KEY = "features";
+    public static final String STATUS_KEY = "status";
+    public static final String FALLBACK_TRIGGERED_KEY = "fallback_triggered";
+    public static final String RETRY_AFTER_SECONDS_KEY = "retry_after_seconds";
+    public static final String SERVICE_URL_KEY = "service_url";
+    public static final String ALTERNATIVE_ACTION_KEY = "alternative_action";
+    public static final String IMPACT_KEY = "impact";
+    public static final String CACHED_DATA_AVAILABLE_KEY = "cached_data_available";
+    public static final String UNKNOWN_SERVICE = "unknown";
+
+    // ===================================================================
+    // METRICS KEYS
+    // ===================================================================
+    public static final String REQUESTS_TOTAL_KEY = "requests_total";
+    public static final String ACTIVE_CONNECTIONS_KEY = "active_connections";
+    public static final String RESPONSE_TIMES_KEY = "response_times";
+    public static final String CIRCUIT_BREAKER_STATES_KEY = "circuit_breaker_states";
+
+    // ===================================================================
+    // FEATURE KEYS
+    // ===================================================================
+    public static final String JWT_AUTH_FEATURE = "jwt_authentication";
+    public static final String RATE_LIMITING_FEATURE = "rate_limiting";
+    public static final String CIRCUIT_BREAKERS_FEATURE = "circuit_breakers";
+    public static final String CORS_SUPPORT_FEATURE = "cors_support";
+    public static final String HEALTH_AGGREGATION_FEATURE = "health_aggregation";
+    public static final String REQUEST_LOGGING_FEATURE = "request_logging";
+
+    public static final String REDIS_SERVICE = "redis";
+
 }

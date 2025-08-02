@@ -121,4 +121,11 @@ public final class GatewayMessages {
     // BEAN NAMES - WebClient Related
     // ===================================================================
     public static final String BEAN_HEALTH_CHECK_WEBCLIENT = "healthCheckWebClient";
+    // Add these to your GatewayMessages class:
+
+    public static final String HEALTH_CHECK_ERROR_SERVICES = "ERROR - Could not check downstream services";
+    public static final String SERVICE_INFO_FORMAT = "%s Service (%s)";
+    public static final String ADMIN_SERVICE_INFO = "Admin Service (via User Service)";
+    public static final String TRACKED_IN_ACTUATOR = "tracked_in_actuator";
+    public static final String LOG_GENERIC_FALLBACK_ACTIVATED = "Generic circuit breaker activated - unknown service is unavailable";
 }

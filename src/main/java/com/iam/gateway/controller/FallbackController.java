@@ -15,31 +15,30 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.Map;
 
 /**
- * Fallback Controller - Using Correct ApiResponse Factory Methods
- * Compatible with iam-common-utilities ApiResponse class
+ * Fallback Controller - Zero Hardcoded Strings
+ * All strings managed through constants for maintainability
  */
 @RestController
-@RequestMapping("/fallback")
+@RequestMapping(GatewayConstants.FALLBACK_PREFIX)
 @RequiredArgsConstructor
 @Slf4j
 public class FallbackController {
 
     private final ApiGatewayProperties properties;
 
-    @GetMapping("/user-service")
+    @GetMapping(GatewayConstants.USER_SERVICE_FALLBACK_PATH)
     public ResponseEntity<ApiResponse<Map<String, Object>>> userServiceFallback() {
         log.warn(GatewayMessages.LOG_CIRCUIT_BREAKER_ACTIVATED, GatewayConstants.USER_SERVICE);
 
         Map<String, Object> fallbackData = Map.of(
-                "service", GatewayConstants.USER_SERVICE,
-                "status", GatewayConstants.STATUS_UNAVAILABLE,
-                "fallback_triggered", true,
-                "retry_after_seconds", properties.getFallback().getRetryAfterSeconds(),
-                "service_url", properties.getServices().getUserServiceUrl(),
-                "alternative_action", GatewayMessages.ACTION_RETRY_LATER
+                GatewayConstants.SERVICE_KEY, GatewayConstants.USER_SERVICE,
+                GatewayConstants.STATUS_KEY, GatewayConstants.STATUS_UNAVAILABLE,
+                GatewayConstants.FALLBACK_TRIGGERED_KEY, true,
+                GatewayConstants.RETRY_AFTER_SECONDS_KEY, properties.getFallback().getRetryAfterSeconds(),
+                GatewayConstants.SERVICE_URL_KEY, properties.getServices().getUserServiceUrl(),
+                GatewayConstants.ALTERNATIVE_ACTION_KEY, GatewayMessages.ACTION_RETRY_LATER
         );
 
-        // Using your ApiResponse static factory method correctly
         ApiResponse<Map<String, Object>> response = ApiResponse.success(fallbackData, GatewayMessages.USER_SERVICE_UNAVAILABLE);
 
         return ResponseEntity
@@ -49,18 +48,18 @@ public class FallbackController {
                 .body(response);
     }
 
-    @GetMapping("/auth-service")
+    @GetMapping(GatewayConstants.AUTH_SERVICE_FALLBACK_PATH)
     public ResponseEntity<ApiResponse<Map<String, Object>>> authServiceFallback() {
         log.warn(GatewayMessages.LOG_CIRCUIT_BREAKER_ACTIVATED, GatewayConstants.AUTH_SERVICE);
 
         Map<String, Object> fallbackData = Map.of(
-                "service", GatewayConstants.AUTH_SERVICE,
-                "status", GatewayConstants.STATUS_UNAVAILABLE,
-                "fallback_triggered", true,
-                "retry_after_seconds", properties.getFallback().getRetryAfterSeconds(),
-                "service_url", properties.getServices().getAuthServiceUrl(),
-                "alternative_action", GatewayMessages.ACTION_AUTH_DISABLED,
-                "impact", GatewayMessages.IMPACT_AUTH_SERVICE
+                GatewayConstants.SERVICE_KEY, GatewayConstants.AUTH_SERVICE,
+                GatewayConstants.STATUS_KEY, GatewayConstants.STATUS_UNAVAILABLE,
+                GatewayConstants.FALLBACK_TRIGGERED_KEY, true,
+                GatewayConstants.RETRY_AFTER_SECONDS_KEY, properties.getFallback().getRetryAfterSeconds(),
+                GatewayConstants.SERVICE_URL_KEY, properties.getServices().getAuthServiceUrl(),
+                GatewayConstants.ALTERNATIVE_ACTION_KEY, GatewayMessages.ACTION_AUTH_DISABLED,
+                GatewayConstants.IMPACT_KEY, GatewayMessages.IMPACT_AUTH_SERVICE
         );
 
         ApiResponse<Map<String, Object>> response = ApiResponse.success(fallbackData, GatewayMessages.AUTH_SERVICE_UNAVAILABLE);
@@ -72,18 +71,18 @@ public class FallbackController {
                 .body(response);
     }
 
-    @GetMapping("/organization-service")
+    @GetMapping(GatewayConstants.ORGANIZATION_SERVICE_FALLBACK_PATH)
     public ResponseEntity<ApiResponse<Map<String, Object>>> organizationServiceFallback() {
         log.warn(GatewayMessages.LOG_CIRCUIT_BREAKER_ACTIVATED, GatewayConstants.ORGANIZATION_SERVICE);
 
         Map<String, Object> fallbackData = Map.of(
-                "service", GatewayConstants.ORGANIZATION_SERVICE,
-                "status", GatewayConstants.STATUS_UNAVAILABLE,
-                "fallback_triggered", true,
-                "retry_after_seconds", properties.getFallback().getRetryAfterSeconds(),
-                "service_url", properties.getServices().getOrganizationServiceUrl(),
-                "alternative_action", GatewayMessages.ACTION_ORG_UNAVAILABLE,
-                "cached_data_available", false
+                GatewayConstants.SERVICE_KEY, GatewayConstants.ORGANIZATION_SERVICE,
+                GatewayConstants.STATUS_KEY, GatewayConstants.STATUS_UNAVAILABLE,
+                GatewayConstants.FALLBACK_TRIGGERED_KEY, true,
+                GatewayConstants.RETRY_AFTER_SECONDS_KEY, properties.getFallback().getRetryAfterSeconds(),
+                GatewayConstants.SERVICE_URL_KEY, properties.getServices().getOrganizationServiceUrl(),
+                GatewayConstants.ALTERNATIVE_ACTION_KEY, GatewayMessages.ACTION_ORG_UNAVAILABLE,
+                GatewayConstants.CACHED_DATA_AVAILABLE_KEY, false
         );
 
         ApiResponse<Map<String, Object>> response = ApiResponse.success(fallbackData, GatewayMessages.ORGANIZATION_SERVICE_UNAVAILABLE);
@@ -95,18 +94,18 @@ public class FallbackController {
                 .body(response);
     }
 
-    @GetMapping("/chat-service")
+    @GetMapping(GatewayConstants.CHAT_SERVICE_FALLBACK_PATH)
     public ResponseEntity<ApiResponse<Map<String, Object>>> chatServiceFallback() {
         log.warn(GatewayMessages.LOG_CIRCUIT_BREAKER_ACTIVATED, GatewayConstants.CHAT_SERVICE);
 
         Map<String, Object> fallbackData = Map.of(
-                "service", GatewayConstants.CHAT_SERVICE,
-                "status", GatewayConstants.STATUS_UNAVAILABLE,
-                "fallback_triggered", true,
-                "retry_after_seconds", properties.getFallback().getRetryAfterSeconds(),
-                "service_url", properties.getServices().getChatServiceUrl(),
-                "alternative_action", GatewayMessages.ACTION_CHAT_UNAVAILABLE,
-                "impact", GatewayMessages.IMPACT_CHAT_SERVICE
+                GatewayConstants.SERVICE_KEY, GatewayConstants.CHAT_SERVICE,
+                GatewayConstants.STATUS_KEY, GatewayConstants.STATUS_UNAVAILABLE,
+                GatewayConstants.FALLBACK_TRIGGERED_KEY, true,
+                GatewayConstants.RETRY_AFTER_SECONDS_KEY, properties.getFallback().getRetryAfterSeconds(),
+                GatewayConstants.SERVICE_URL_KEY, properties.getServices().getChatServiceUrl(),
+                GatewayConstants.ALTERNATIVE_ACTION_KEY, GatewayMessages.ACTION_CHAT_UNAVAILABLE,
+                GatewayConstants.IMPACT_KEY, GatewayMessages.IMPACT_CHAT_SERVICE
         );
 
         ApiResponse<Map<String, Object>> response = ApiResponse.success(fallbackData, GatewayMessages.CHAT_SERVICE_UNAVAILABLE);
@@ -118,18 +117,18 @@ public class FallbackController {
                 .body(response);
     }
 
-    @GetMapping("/admin-service")
+    @GetMapping(GatewayConstants.ADMIN_SERVICE_FALLBACK_PATH)
     public ResponseEntity<ApiResponse<Map<String, Object>>> adminServiceFallback() {
         log.warn(GatewayMessages.LOG_CIRCUIT_BREAKER_ACTIVATED, GatewayConstants.ADMIN_SERVICE);
 
         Map<String, Object> fallbackData = Map.of(
-                "service", GatewayConstants.ADMIN_SERVICE,
-                "status", GatewayConstants.STATUS_UNAVAILABLE,
-                "fallback_triggered", true,
-                "retry_after_seconds", properties.getFallback().getRetryAfterSeconds(),
-                "service_url", properties.getServices().getUserServiceUrl(), // Admin goes through user service
-                "alternative_action", GatewayMessages.ACTION_ADMIN_UNAVAILABLE,
-                "impact", GatewayMessages.IMPACT_ADMIN_SERVICE
+                GatewayConstants.SERVICE_KEY, GatewayConstants.ADMIN_SERVICE,
+                GatewayConstants.STATUS_KEY, GatewayConstants.STATUS_UNAVAILABLE,
+                GatewayConstants.FALLBACK_TRIGGERED_KEY, true,
+                GatewayConstants.RETRY_AFTER_SECONDS_KEY, properties.getFallback().getRetryAfterSeconds(),
+                GatewayConstants.SERVICE_URL_KEY, properties.getServices().getUserServiceUrl(), // Admin goes through user service
+                GatewayConstants.ALTERNATIVE_ACTION_KEY, GatewayMessages.ACTION_ADMIN_UNAVAILABLE,
+                GatewayConstants.IMPACT_KEY, GatewayMessages.IMPACT_ADMIN_SERVICE
         );
 
         ApiResponse<Map<String, Object>> response = ApiResponse.success(fallbackData, GatewayMessages.ADMIN_SERVICE_UNAVAILABLE);
@@ -144,16 +143,16 @@ public class FallbackController {
     /**
      * Generic fallback for any undefined service
      */
-    @GetMapping("/**")
+    @GetMapping(GatewayConstants.GENERIC_FALLBACK_PATH)
     public ResponseEntity<ApiResponse<Map<String, Object>>> genericFallback() {
-        log.warn("Generic circuit breaker activated - unknown service is unavailable");
+        log.warn(GatewayMessages.LOG_GENERIC_FALLBACK_ACTIVATED);
 
         Map<String, Object> fallbackData = Map.of(
-                "service", "unknown",
-                "status", GatewayConstants.STATUS_UNAVAILABLE,
-                "fallback_triggered", true,
-                "retry_after_seconds", properties.getFallback().getRetryAfterSeconds(),
-                "alternative_action", GatewayMessages.ACTION_UNKNOWN_SERVICE
+                GatewayConstants.SERVICE_KEY, GatewayConstants.UNKNOWN_SERVICE,
+                GatewayConstants.STATUS_KEY, GatewayConstants.STATUS_UNAVAILABLE,
+                GatewayConstants.FALLBACK_TRIGGERED_KEY, true,
+                GatewayConstants.RETRY_AFTER_SECONDS_KEY, properties.getFallback().getRetryAfterSeconds(),
+                GatewayConstants.ALTERNATIVE_ACTION_KEY, GatewayMessages.ACTION_UNKNOWN_SERVICE
         );
 
         ApiResponse<Map<String, Object>> response = ApiResponse.success(fallbackData, GatewayMessages.GENERIC_SERVICE_UNAVAILABLE);
